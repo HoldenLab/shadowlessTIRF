@@ -411,7 +411,7 @@ class MainGui(QWidget):
         self.connectToChangeSignal()
         self.changeSignal.connect(self.updateValues)
         self.setGeometry(QRect(488, 390, 704, 376))
-        self.startstop()#initialize in the off state
+        self.startstop()
         self.show()
     def connectToChangeSignal(self):
         for item in self.items:
