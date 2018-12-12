@@ -13,8 +13,8 @@ To view pins, look at http://www.ni.com/pdf/manuals/371232b.pdf figure 4.
 - Pin 60 (ao4) is the ttl pulse which is which is triggered at the beginning of every period and should be plugged into Pin 1 (top right) of the Cascade Photometrics Model 128 camera. 
 - Pin 69 (analog ground) should be plugged into Pin 3 of the Camera (top, third pin from right). 
 
-The blue laser is pin 28 (ao5). Ground is pin 29.
-The green laser is pin 30 (ao6).  Ground is pin 31.
+The blue laser (Laser 1) is pin 28 (ao5). Ground is pin 29.
+The green laser (Laser 2) is pin 30 (ao6).  Ground is pin 31.
 
 To Use:
 Run this program with python.  
@@ -287,6 +287,9 @@ class SliderLabel(QWidget):
     def __init__(self,decimals=0): #decimals specifies the resolution of the slider.  0 means only integers,  1 means the tens place, etc.
         QWidget.__init__(self)
         self.slider=QSlider(Qt.Horizontal)
+        self.slider.setStyleSheet("QSlider {min-height: 68px; max-height: 68px; }\n"
+            "QSlider::groove:horizontal {border: 1px solid #262626; height: 5px; background: #393939; margin: 0 12px;}\n"
+            "QSlider::handle:horizontal { background: #22B14C; border: 5px solid #B5E61D; width: 23px; height: 100px; margin: -24px -12px; }\n") # sets the slider style
         self.decimals=decimals
         if self.decimals<=0:
             self.label=QSpinBox()
@@ -365,10 +368,10 @@ class MainGui(QWidget):
         self.items.append({'name':'phase','string':'Phase','object':phase})
         self.items.append({'name':'x_shift','string':'x-shift','object':x_shift})
         self.items.append({'name':'y_shift','string':'y-shift','object':y_shift})
-        self.items.append({'name':'blue_laser','string':'Blue Laser On','object':CheckBox()})
-        self.items.append({'name':'green_laser','string':'Green Laser On','object':CheckBox()})
-        self.items.append({'name':'blue_laser_power','string':'Blue Laser Power','object':blue_laser_power})
-        self.items.append({'name':'green_laser_power','string':'Green Laser Power','object':green_laser_power})
+        self.items.append({'name':'blue_laser','string':'Laser 1 On','object':CheckBox()})
+        self.items.append({'name':'green_laser','string':'Laser 2 On','object':CheckBox()})
+        self.items.append({'name':'blue_laser_power','string':'Laser 1 Power','object':blue_laser_power})
+        self.items.append({'name':'green_laser_power','string':'Laser 2 Power','object':green_laser_power})
         alternate12=CheckBox(); alternate123=CheckBox();
         self.items.append({'name':'alternate12','string':'Alternate between Setting 1 and Setting 2 every cycle','object':alternate12})
         self.items.append({'name':'alternate123','string':'Alternate between Setting 1, 2, and 3 every cycle','object':alternate123})
