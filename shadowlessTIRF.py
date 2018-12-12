@@ -6,7 +6,7 @@ Created on Fri Jun 20 19:06:55 2014
 This program controls the mirrors attached to the galvos.   The position of one mirror is controlled by a sine wave, the other mirror is controlled by a cosine wave.  
 When a laser is reflected off both mirrors, it spins in a circle.  This can be used to position the laser for shadowless TIRF microscopy.  
 
-Make sure that the National Instruments DAC PCI-6733 is "Dev2" with the National Instruments Measurement and Automation tool.  
+Make sure that the National Instruments DAC PCI-6733 is "Dev1" with the National Instruments Measurement and Automation tool.  
 To view pins, look at http://www.ni.com/pdf/manuals/371232b.pdf figure 4. 
 - Pin 57 (ao2) is the sine wave.  
 - Pin 25 (ao3) is the cosine wave.  
@@ -113,11 +113,11 @@ class GalvoDriver(QWidget):
         self.hide()
     def createTask(self):
         self.analog_output = Task()
-        self.analog_output.CreateAOVoltageChan("Dev2/ao2","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao2 is pin 57 and ground is 56
-        self.analog_output.CreateAOVoltageChan("Dev2/ao3","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao3 is pin 25 and ground is 24
-        self.analog_output.CreateAOVoltageChan("Dev2/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59
-        self.analog_output.CreateAOVoltageChan("Dev2/ao5","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao5 is pin 28 and ground is 29. This is blue laser
-        self.analog_output.CreateAOVoltageChan("Dev2/ao6","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao6 is pin 30 and ground is 31. This is green laser
+        self.analog_output.CreateAOVoltageChan("Dev1/ao2","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao2 is pin 57 and ground is 56
+        self.analog_output.CreateAOVoltageChan("Dev1/ao3","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao3 is pin 25 and ground is 24
+        self.analog_output.CreateAOVoltageChan("Dev1/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59
+        self.analog_output.CreateAOVoltageChan("Dev1/ao5","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao5 is pin 28 and ground is 29. This is blue laser
+        self.analog_output.CreateAOVoltageChan("Dev1/ao6","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao6 is pin 30 and ground is 31. This is green laser
 
 
                         #  CfgSampClkTiming(source, rate, activeEdge, sampleMode, sampsPerChan)
