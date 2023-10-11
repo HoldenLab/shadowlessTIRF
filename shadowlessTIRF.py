@@ -44,9 +44,10 @@ from __future__ import division
 import os
 os.chdir(os.path.split(os.path.realpath(__file__))[0])
 import dependency_check
-from PyDAQmx import *
+from PyDAQmx import *   #TODO have a look in here to understand c back end
 from PyDAQmx.DAQmxCallBack import *
 import numpy as np
+from PyQt4 import QtGui
 from PyQt4.QtGui import * # Qt is Nokias GUI rendering code written in C++.  PyQt4 is a library in python which binds to Qt
 from PyQt4.QtCore import *
 from PyQt4.QtCore import pyqtSignal as Signal
@@ -63,11 +64,11 @@ from os.path import expanduser
 
 
 class Settings:
-    ''' This class saves all the settings as you adjust them.  This way, when you close the program and reopen it, all your settings will automatically load as they were just after the last adjustement'''
+    # This class saves all the settings as you adjust them.  This way, when you close the program and reopen it, all your settings will automatically load as they were just after the last adjustement
     def __init__(self):
         self.i=0
         self.config_file=os.path.join(expanduser("~"),'.ShadowlessTIRF','config.p')
-        try:
+        try:    
             self.d=pickle.load(open(self.config_file, "rb" ))
         except IOError:
             a=dict()
@@ -75,8 +76,8 @@ class Settings:
             a['radius']=5 #in volts.  Max amplitude is 10 volts
             a['ellipticity']=1
             a['phase']=0
-            a['x_shift']=0
-            a['y_shift']=0
+            a['x_shift']=-1
+            a['y_shift']=1
             a['alternate12']=False # When this is true, settings 1 and 2 are alternated every cycle.
             a['alternate123']=False # When this is true, settings 1,2 and 3 are cycled through.
             a['blue_laser']=False
@@ -97,9 +98,9 @@ class Settings:
         return self.d[self.i].keys()
         
 
-        
+
 class GalvoDriver(QWidget):
-    ''' This class sends creates the signal which will control the two galvos and the lasers, and sends it to the DAQ.'''
+    #This class sends creates the signal which will control the two galvos and the lasers, and sends it to the DAQ.
     finished_acquire_sig=Signal()
     def __init__(self,settings):
         QWidget.__init__(self)
@@ -113,11 +114,11 @@ class GalvoDriver(QWidget):
         self.hide()
     def createTask(self):
         self.analog_output = Task()
-        self.analog_output.CreateAOVoltageChan("Dev1/ao2","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao2 is pin 57 and ground is 56
-        self.analog_output.CreateAOVoltageChan("Dev1/ao3","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao3 is pin 25 and ground is 24
-        self.analog_output.CreateAOVoltageChan("Dev1/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59
-        self.analog_output.CreateAOVoltageChan("Dev1/ao5","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao5 is pin 28 and ground is 29. This is blue laser
-        self.analog_output.CreateAOVoltageChan("Dev1/ao6","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao6 is pin 30 and ground is 31. This is green laser
+        self.analog_output.CreateAOVoltageChan("Dev1/ao0","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao2 is pin 57 and ground is 56
+        self.analog_output.CreateAOVoltageChan("Dev1/ao1","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao3 is pin 25 and ground is 24
+        #self.analog_output.CreateAOVoltageChan("Dev1/a02","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59
+        #self.analog_output.CreateAOVoltageChan("Dev1/ao3","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao5 is pin 28 and ground is 29. This is blue laser
+        #self.analog_output.CreateAOVoltageChan("Dev1/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao6 is pin 30 and ground is 31. This is green laser
 
 
                         #  CfgSampClkTiming(source, rate, activeEdge, sampleMode, sampsPerChan)
@@ -132,7 +133,7 @@ class GalvoDriver(QWidget):
         
         
     def getSinCosTTL(self,frequency,radius,ellipticity,phase,x_shift,y_shift,blue_laser,green_laser,blue_laser_power,green_laser_power,period=.005):
-        ''' The period argument is only used when the value of the frequency is 0'''
+        # The period argument is only used when the value of the frequency is 0
         if frequency==0:
             t=np.arange(0,period,1/self.sample_rate)
             sinwave=radius*np.sin(np.zeros(len(t)))+x_shift
@@ -272,17 +273,16 @@ class GalvoDriver(QWidget):
         self.acquiring=False
         self.finished_acquire_sig.emit()
         #maingui.acquireButton.setStyleSheet("background-color: green");
-            
         
-        
-
+'''
+'''
 ##############################################################################
 ####   GRAPHICAL USER INTERFACE ##############################################
 ##############################################################################
 class SliderLabel(QWidget):
-    '''SliderLabel is a widget containing a QSlider and a QSpinBox (or QDoubleSpinBox if decimals are required)
-    The QSlider and SpinBox are connected so that a change in one causes the other to change. 
-    '''
+    #SliderLabel is a widget containing a QSlider and a QSpinBox (or QDoubleSpinBox if decimals are required)
+    #The QSlider and SpinBox are connected so that a change in one causes the other to change. 
+
     changeSignal=Signal(int)
     def __init__(self,decimals=0): #decimals specifies the resolution of the slider.  0 means only integers,  1 means the tens place, etc.
         QWidget.__init__(self)
@@ -323,8 +323,8 @@ class SliderLabel(QWidget):
         self.slider.setValue(value*10**self.decimals)
         self.label.setValue(value)
 class FrequencySlider(SliderLabel):
-    '''This is a modified SliderLabel class that prevents the user from setting a value between 0 and 1.  This controls the frequency of the sin wave.  Otherwise, the period could be too long, and you can only update any values at phase=0.
-    '''
+    #This is a modified SliderLabel class that prevents the user from setting a value between 0 and 1.  This controls the frequency of the sin wave.  Otherwise, the period could be too long, and you can only update any values at phase=0.
+
     def __init__(self,demicals=0):
         SliderLabel.__init__(self,demicals)
     def updateSlider(self,value):
@@ -336,15 +336,14 @@ class FrequencySlider(SliderLabel):
             value=0
         self.label.setValue(value)
 class CheckBox(QCheckBox):
-    ''' I overwrote the QCheckBox class so that every graphical element has the method 'setValue'
-    '''
+    # I overwrote the QCheckBox class so that every graphical element has the method 'setValue'
     def __init__(self,parent=None):
         QCheckBox.__init__(self,parent)
     def setValue(self,value):
         self.setChecked(value)
 
 class MainGui(QWidget):
-    ''' This class creates and controls the GUI '''
+    #This class creates and controls the GUI
     changeSignal=Signal()
     def __init__(self):
         QWidget.__init__(self)
@@ -354,7 +353,7 @@ class MainGui(QWidget):
         self.settings=Settings()
         self.galvoDriver=GalvoDriver(self.settings)
         frequency=FrequencySlider(3); frequency.setRange(0,500)
-        radius=SliderLabel(4); radius.setRange(0,2)
+        radius=SliderLabel(4); radius.setRange(0,5)
         ellipticity=SliderLabel(3); ellipticity.setRange(0,2.5)
         phase=SliderLabel(3); phase.setRange(-90,90)
         x_shift=SliderLabel(4); x_shift.setRange(-10,10)
@@ -437,7 +436,7 @@ class MainGui(QWidget):
             self.settings[item['name']]=item['value']
         self.galvoDriver.refresh()
     def memrecall(self,i):
-        '''i is the setting number we are recalling'''
+        #i is the setting number we are recalling
         self.changeSignal.disconnect(self.updateValues)
         s=self.settings
         s.d[0]=s.d[i].copy()
@@ -446,7 +445,7 @@ class MainGui(QWidget):
         self.changeSignal.connect(self.updateValues)
         self.galvoDriver.refresh()
     def memstore(self,i):
-        '''i is the setting number we are storing.  settings.d[0] is always the current setting.'''
+        #i is the setting number we are storing.  settings.d[0] is always the current setting.
         self.settings.d[i]=self.settings.d[0].copy()
         self.settings.save()
     def acquire(self):
@@ -479,9 +478,10 @@ class MainGui(QWidget):
             self.acquireButton.hide()
 
 
-    
+  
 if __name__ == '__main__':
+    print("hello world")
     app = QApplication(sys.argv)
     maingui=MainGui()
     sys.exit(app.exec_())
-    
+  
