@@ -83,8 +83,6 @@ class Settings:
             a['phase']=0
             a['x_shift']=-1
             a['y_shift']=1
-            a['alternate12']=False # When this is true, settings 1 and 2 are alternated every cycle.
-            a['alternate123']=False # When this is true, settings 1,2 and 3 are cycled through.
             a['blue_laser']=False
             a['green_laser']=False
             a['green_laser_power']=5 #in volts
@@ -169,59 +167,18 @@ class GalvoDriver(QWidget):
         return sinwave,coswave,camera_ttl, blue_laser_ttl, green_laser_ttl
     def calculate(self):
         s=self.settings
-   
-        
-        if s['alternate12'] is False and s['alternate123'] is False:
-            #HARDCODED SAFETY LIMITS ON THE RADIUS
-            #ONLY IMPLEMENTED FOR NON ALTERNATING MODE AS THATS ALL WE USE
-            if s['radius'] > RADIUS_SAFE_LIMIT[0] and s['radius'] < RADIUS_SAFE_LIMIT[1]:
-                s['radius'] = RADIUS_SAFE_LIMIT[0];
-            if DEBUG_LASER_SAFE:
-                print(s['radius']);
-                
-            sinwave,coswave,camera_ttl,blue_laser_ttl, green_laser_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'],s['blue_laser'],s['green_laser'],s['blue_laser_power'],s['green_laser_power'])
-            self.data=np.concatenate((sinwave,coswave,camera_ttl,blue_laser_ttl,green_laser_ttl))
-            self.sampsPerPeriod=len(sinwave)
-        elif s['alternate12']:
-            f1=s.d[1]['frequency']
-            f2=s.d[2]['frequency']
-            if f1==0 and f2==0:
-                period1=.005; period2=.005; #Alternate every 5ms if there is the frequency for both setting #1 and setting #2 is 0
-            elif f1==0:
-                period1=1/f2; period2=period1 #Give adopt the period of setting #2 if the frequency for setting #1 is 0
-            elif f2==0:
-                period1=1/f1; period2=period1
-            else:
-                period1=1/f1; period2=1/f2
-            sinwave1,coswave1,camera_ttl1,blue_laser_ttl1,green_laser_ttl1=self.getSinCosTTL(f1,s.d[1]['radius'],s.d[1]['ellipticity'],s.d[1]['phase'],s.d[1]['x_shift'],s.d[1]['y_shift'],s.d[1]['blue_laser'],s.d[1]['green_laser'],s.d[1]['blue_laser_power'],s.d[1]['green_laser_power'],period1)
-            sinwave2,coswave2,camera_ttl2,blue_laser_ttl2,green_laser_ttl2=self.getSinCosTTL(f2,s.d[2]['radius'],s.d[2]['ellipticity'],s.d[2]['phase'],s.d[2]['x_shift'],s.d[2]['y_shift'],s.d[2]['blue_laser'],s.d[2]['green_laser'],s.d[2]['blue_laser_power'],s.d[2]['green_laser_power'],period2)
-            self.data=np.concatenate((sinwave1,sinwave2,coswave1,coswave2,camera_ttl1,camera_ttl2,blue_laser_ttl1,blue_laser_ttl2,green_laser_ttl1,green_laser_ttl2))
-            self.sampsPerPeriod=len(sinwave1)+len(sinwave2)
-        elif s['alternate123']:
-            f1=s.d[1]['frequency']
-            f2=s.d[2]['frequency']
-            f3=s.d[3]['frequency']
-            if f1==0 and f2==0 and f3==0:
-                period1=.005; period2=.005; period3=.005;
-            elif f1==0 and f2==0:
-                period3=1/f3; period2=period3; period1=period3;
-            elif f1==0 and f3==0:
-                period2=1/f2; period1=period2; period3=period2
-            elif f2==0 and f3==0:
-                period1=1/f1; period2=period1; period3=period1
-            elif f1==0:
-                period2=1/f2; period3=1/f3; period1=period2
-            elif f2==0:
-                period1=1/f1; period2=period1; period3=1/f3
-            elif f3==0:
-                period1=1/f1; period2=1/f2; period3=period1
-            else:
-                period1=1/f1; period2=1/f2; period3=1/f3
-            sinwave1,coswave1,camera_ttl1,blue_laser_ttl1,green_laser_ttl1=self.getSinCosTTL(f1,s.d[1]['radius'],s.d[1]['ellipticity'],s.d[1]['phase'],s.d[1]['x_shift'],s.d[1]['y_shift'],s.d[1]['blue_laser'],s.d[1]['green_laser'],s.d[1]['blue_laser_power'],s.d[1]['green_laser_power'],period1)
-            sinwave2,coswave2,camera_ttl2,blue_laser_ttl2,green_laser_ttl2=self.getSinCosTTL(f2,s.d[2]['radius'],s.d[2]['ellipticity'],s.d[2]['phase'],s.d[2]['x_shift'],s.d[2]['y_shift'],s.d[2]['blue_laser'],s.d[2]['green_laser'],s.d[2]['blue_laser_power'],s.d[2]['green_laser_power'],period2)
-            sinwave3,coswave3,camera_ttl3,blue_laser_ttl3,green_laser_ttl3=self.getSinCosTTL(f3,s.d[3]['radius'],s.d[3]['ellipticity'],s.d[3]['phase'],s.d[3]['x_shift'],s.d[3]['y_shift'],s.d[3]['blue_laser'],s.d[3]['green_laser'],s.d[3]['blue_laser_power'],s.d[3]['green_laser_power'],period3)
-            self.data=np.concatenate((sinwave1,sinwave2,sinwave3,coswave1,coswave2,coswave3,camera_ttl1,camera_ttl2,camera_ttl3,blue_laser_ttl1,blue_laser_ttl2,blue_laser_ttl3,green_laser_ttl1,green_laser_ttl2,green_laser_ttl3))
-            self.sampsPerPeriod=len(sinwave1)+len(sinwave2)+len(sinwave3)
+          
+        #HARDCODED SAFETY LIMITS ON THE RADIUS
+        #ONLY IMPLEMENTED FOR NON ALTERNATING MODE AS THATS ALL WE USE
+        if s['radius'] > RADIUS_SAFE_LIMIT[0] and s['radius'] < RADIUS_SAFE_LIMIT[1]:
+            s['radius'] = RADIUS_SAFE_LIMIT[0];
+        if DEBUG_LASER_SAFE:
+            print(s['radius']);
+            
+        sinwave,coswave,camera_ttl,blue_laser_ttl, green_laser_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'],s['blue_laser'],s['green_laser'],s['blue_laser_power'],s['green_laser_power'])
+        self.data=np.concatenate((sinwave,coswave,camera_ttl,blue_laser_ttl,green_laser_ttl))
+        self.sampsPerPeriod=len(sinwave)
+    
     def startstop(self):
         if self.stopped:
             self.analog_output.StartTask()
@@ -246,12 +203,10 @@ class GalvoDriver(QWidget):
         self.acquiring=True
         self.counter=0
         self.tic=time.time()
-        radius=self.settings.d[0]['radius']; alternate12=self.settings.d[0]['alternate12']; alternate123=self.settings.d[0]['alternate123']
+        radius=self.settings.d[0]['radius']; 
         self.settings['radius']=.6
-        self.settings['alternate12']=False
-        self.settings['alternate123']=False
         self.calculate()
-        self.settings['radius']=radius; self.settings['alternate12']=alternate12; self.settings['alternate123']=alternate123
+        self.settings['radius']=radius; 
         if self.stopped is False:
             self.analog_output.StopTask()
         self.EveryNCallback = DAQmxEveryNSamplesEventCallbackPtr(self.EveryNCallback_py)
@@ -279,8 +234,6 @@ class GalvoDriver(QWidget):
     def stopAcquiring(self):
         self.settings.d[0]['frequency']=0
         self.settings.d[0]['radius']=.6
-        self.settings.d[0]['alternate12']=False
-        self.settings.d[0]['alternate123']=False
         self.calculate()
         self.createTask()
         self.startstop()
@@ -385,16 +338,11 @@ class MainGui(QWidget):
         self.items.append({'name':'green_laser','string':'Laser 2 On','object':CheckBox()})
         self.items.append({'name':'blue_laser_power','string':'Laser 1 Power','object':blue_laser_power})
         self.items.append({'name':'green_laser_power','string':'Laser 2 Power','object':green_laser_power})
-        alternate12=CheckBox(); alternate123=CheckBox();
-        self.items.append({'name':'alternate12','string':'Alternate between Setting 1 and Setting 2 every cycle','object':alternate12})
-        self.items.append({'name':'alternate123','string':'Alternate between Setting 1, 2, and 3 every cycle','object':alternate123})
+
         for item in self.items:
             formlayout.addRow(item['string'],item['object'])
             item['object'].setValue(self.settings[item['name']])
             
-        
-        
-        
         self.save1=QPushButton('Save'); self.save1.setStyleSheet("background-color: red"); self.save1.clicked.connect(lambda: self.memstore(1))
         self.save2=QPushButton('Save'); self.save2.setStyleSheet("background-color: red"); self.save2.clicked.connect(lambda: self.memstore(2))
         self.save3=QPushButton('Save'); self.save3.setStyleSheet("background-color: red"); self.save3.clicked.connect(lambda: self.memstore(3))
@@ -421,10 +369,12 @@ class MainGui(QWidget):
         self.layout=QVBoxLayout()
         self.layout.addLayout(formlayout)
         self.layout.addWidget(membox)
+        self.layout.addSpacing(50);     
+        
         self.safety_label = QLabel("WARNING: Beam radii from "
                                 + str(RADIUS_SAFE_LIMIT[0]) + "V to " + str(RADIUS_SAFE_LIMIT[1]) 
                                 + "V are ignored to reduce risk of eyestrike")
-        self.layout.addSpacing(50);
+        
         self.layout.addWidget(self.safety_label);
         self.layout.addSpacing(50);
         self.layout.addLayout(stopacquirebox)
