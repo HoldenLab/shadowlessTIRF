@@ -57,7 +57,7 @@ import os, time
 from os.path import expanduser
 
 #HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment
-RADIUS_SAFE_LIMIT = [0.0, 5.0];
+RADIUS_SAFE_LIMIT = [0.1, 0.3];
 
 
 class Settings:
@@ -166,11 +166,9 @@ class GalvoDriver(QWidget):
         if s['alternate12'] is False and s['alternate123'] is False:
             #HARDCODED SAFETY LIMITS ON THE RADIUS
             #ONLY IMPLEMENTED FOR NON ALTERNATING MODE AS THATS ALL WE USE
-            if s['radius'] > RADIUS_SAFE_LIMIT[0]:
+            if s['radius'] > RADIUS_SAFE_LIMIT[0] and s['radius'] < RADIUS_SAFE_LIMIT[1]:
                 s['radius'] = RADIUS_SAFE_LIMIT[0];
-            elif s['radius'] < RADIUS_SAFE_LIMIT[1]:
-                s['radius'] = RADIUS_SAFE_LIMIT[1];
-            
+            print(s['radius']);
             sinwave,coswave,camera_ttl,blue_laser_ttl, green_laser_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'],s['blue_laser'],s['green_laser'],s['blue_laser_power'],s['green_laser_power'])
             self.data=np.concatenate((sinwave,coswave,camera_ttl,blue_laser_ttl,green_laser_ttl))
             self.sampsPerPeriod=len(sinwave)
