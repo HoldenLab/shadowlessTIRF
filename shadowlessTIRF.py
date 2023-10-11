@@ -58,7 +58,7 @@ from os.path import expanduser
 
 #HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment
 RADIUS_SAFE_LIMIT = [0.1, 0.3];
-DEBUG_LASER_SAFE = true;
+DEBUG_LASER_SAFE = True;
 
 class Settings:
     # This class saves all the settings as you adjust them.  This way, when you close the program and reopen it, all your settings will automatically load as they were just after the last adjustement
@@ -170,7 +170,7 @@ class GalvoDriver(QWidget):
                 s['radius'] = RADIUS_SAFE_LIMIT[0];
             if DEBUG_LASER_SAFE:
                 print(s['radius']);
-                           
+                
             sinwave,coswave,camera_ttl,blue_laser_ttl, green_laser_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'],s['blue_laser'],s['green_laser'],s['blue_laser_power'],s['green_laser_power'])
             self.data=np.concatenate((sinwave,coswave,camera_ttl,blue_laser_ttl,green_laser_ttl))
             self.sampsPerPeriod=len(sinwave)
