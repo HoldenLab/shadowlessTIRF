@@ -11,11 +11,11 @@ Make sure that the National Instruments DAC PCI-6733 is "Dev1" with the National
 To view pins, look at http://www.ni.com/pdf/manuals/371232b.pdf figure 4. 
 - Pin 57 (ao2) is the sine wave.  
 - Pin 25 (ao3) is the cosine wave.  
+
+NOTE: The TTL sync code for the camera is currently disabled - to enable need to add back in commented #CAMERATTL code
 - Pin 60 (ao4) is the ttl pulse which is which is triggered at the beginning of every period and should be plugged into Pin 1 (top right) of the Cascade Photometrics Model 128 camera. 
 - Pin 69 (analog ground) should be plugged into Pin 3 of the Camera (top, third pin from right). 
 
-The blue laser (Laser 1) is pin 28 (ao5). Ground is pin 29.
-The green laser (Laser 2) is pin 30 (ao6).  Ground is pin 31.
 
 To Use:
 Run this program with python.  
@@ -25,15 +25,6 @@ Radius: 0-1V #Actually goes up to 5V but we never use more than 0.5V so reduced 
 x_shift:-10 -10V
 y_shift:-10 -10V
     
-LASER CONTROL:
-WIRES:
-green  - ground
-blue   - blue laser (488nm)
-yellow - green laser
-TTL control info:
-Green laser is active low
-Blue laser is active high
-Blue laser requires "Digital:Power" mode in 'Coherent Connection' software to be operated via ttl pulse.
 
 SAFETY: Setting the beam radius at intermediate values between Epi and HILO can put the beam in a range where
 eyestrike risk is quite high.
@@ -65,7 +56,7 @@ from os.path import expanduser
 ################################################################################
 #HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment
 #################################################################################
-RADIUS_SAFE_LIMIT = [0.1, 0.3];
+RADIUS_SAFE_LIMIT = [0.0, 0.0];
 DEBUG_LASER_SAFE = True;
 
 class Settings:
@@ -83,10 +74,6 @@ class Settings:
             a['phase']=0
             a['x_shift']=-1
             a['y_shift']=1
-            a['blue_laser']=False
-            a['green_laser']=False
-            a['green_laser_power']=5 #in volts
-            a['blue_laser_power']=5 #in volts
             self.d=[a,a.copy(),a.copy(),a.copy()]
     def __getitem__(self, item):
         return self.d[self.i][item]
@@ -103,7 +90,7 @@ class Settings:
 
 
 class GalvoDriver(QWidget):
-    #This class sends creates the signal which will control the two galvos and the lasers, and sends it to the DAQ.
+    #This class sends creates the signal which will control the two galvos, and sends it to the DAQ.
     finished_acquire_sig=Signal()
     def __init__(self,settings):
         QWidget.__init__(self)
@@ -119,12 +106,10 @@ class GalvoDriver(QWidget):
         self.analog_output = Task()
         self.analog_output.CreateAOVoltageChan("Dev1/ao0","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao2 is pin 57 and ground is 56
         self.analog_output.CreateAOVoltageChan("Dev1/ao1","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao3 is pin 25 and ground is 24
-        #self.analog_output.CreateAOVoltageChan("Dev1/a02","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59
-        #self.analog_output.CreateAOVoltageChan("Dev1/ao3","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao5 is pin 28 and ground is 29. This is blue laser
-        #self.analog_output.CreateAOVoltageChan("Dev1/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao6 is pin 30 and ground is 31. This is green laser
-
-
-                        #  CfgSampClkTiming(source, rate, activeEdge, sampleMode, sampsPerChan)
+        
+        #CAMERATTL
+         
+                        #  CfgSampClkTiming(source, rate, activeEdge, sampleMode, sampsPerChan) 
         self.analog_output.CfgSampClkTiming("",self.sample_rate,DAQmx_Val_Rising,DAQmx_Val_ContSamps,self.sampsPerPeriod)
                         #  WriteAnalogF64(numSampsPerChan, autoStart, timeout, dataLayout, writeArray, sampsPerChanWritten, reserved)
         self.analog_output.WriteAnalogF64(self.sampsPerPeriod,0,-1,DAQmx_Val_GroupByChannel,self.data,byref(self.read),None) 
@@ -146,25 +131,11 @@ class GalvoDriver(QWidget):
             t=np.arange(0,period,1/self.sample_rate )
             sinwave=radius*np.sin(frequency*(t*(2*np.pi)))+x_shift
             coswave=(ellipticity*radius*np.cos(frequency*t*2*np.pi+phase*(2*np.pi/360)))+(y_shift)
-            camera_ttl=np.zeros(len(t))
-            camera_ttl[0]=5
+        
         camera_ttl=np.zeros(len(t))
-        camera_ttl[0]=5
-        if blue_laser:
-            blue_laser_ttl=blue_laser_power*np.ones(len(t))
-            #a=len(t)
-            #blue_laser_ttl[a/8:3*a/8]=blue_laser_power #right
-            #blue_laser_ttl[3*a/8:5*a/8]=blue_laser_power #bottom
-            #blue_laser_ttl[5*a/8:7*a/8]=blue_laser_power #left
-            #blue_laser_ttl[:a/8]=blue_laser_power; blue_laser_ttl[7*a/8:]=blue_laser_power #top
-            
-        else:
-            blue_laser_ttl=-.08*np.ones(len(t))
-        if green_laser:
-            green_laser_ttl=green_laser_power*np.ones(len(t)) #0V is on for green laser
-        else:
-            green_laser_ttl=-.08*np.ones(len(t)) #5V is off for green laser
-        return sinwave,coswave,camera_ttl, blue_laser_ttl, green_laser_ttl
+        camera_ttl[0]=5    
+        
+        return sinwave,coswave,camera_ttl
     def calculate(self):
         s=self.settings
           
@@ -175,8 +146,8 @@ class GalvoDriver(QWidget):
         if DEBUG_LASER_SAFE:
             print(s['radius']);
             
-        sinwave,coswave,camera_ttl,blue_laser_ttl, green_laser_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'],s['blue_laser'],s['green_laser'],s['blue_laser_power'],s['green_laser_power'])
-        self.data=np.concatenate((sinwave,coswave,camera_ttl,blue_laser_ttl,green_laser_ttl))
+        sinwave,coswave,camera_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'])
+        self.data=np.concatenate((sinwave,coswave,camera_ttl))
         self.sampsPerPeriod=len(sinwave)
     
     def startstop(self):
@@ -325,8 +296,6 @@ class MainGui(QWidget):
         phase=SliderLabel(3); phase.setRange(-90,90)
         x_shift=SliderLabel(4); x_shift.setRange(-10,10)
         y_shift=SliderLabel(4); y_shift.setRange(-10,10)
-        blue_laser_power=SliderLabel(3); blue_laser_power.setRange(-.08,5)
-        green_laser_power=SliderLabel(3); green_laser_power.setRange(-.08,5)
         self.items=[]
         self.items.append({'name':'frequency','string':'Frequency (Hz)','object':frequency})
         self.items.append({'name':'radius','string':'Radius','object':radius})
@@ -334,10 +303,7 @@ class MainGui(QWidget):
         self.items.append({'name':'phase','string':'Phase','object':phase})
         self.items.append({'name':'x_shift','string':'x-shift','object':x_shift})
         self.items.append({'name':'y_shift','string':'y-shift','object':y_shift})
-        self.items.append({'name':'blue_laser','string':'Laser 1 On','object':CheckBox()})
-        self.items.append({'name':'green_laser','string':'Laser 2 On','object':CheckBox()})
-        self.items.append({'name':'blue_laser_power','string':'Laser 1 Power','object':blue_laser_power})
-        self.items.append({'name':'green_laser_power','string':'Laser 2 Power','object':green_laser_power})
+
 
         for item in self.items:
             formlayout.addRow(item['string'],item['object'])
