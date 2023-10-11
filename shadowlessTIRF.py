@@ -57,7 +57,7 @@ from os.path import expanduser
 #HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment
 #################################################################################
 RADIUS_SAFE_LIMIT = [0.0, 0.0];
-DEBUG_LASER_SAFE = True;
+DEBUG_LASER_SAFE = False;
 
 class Settings:
     # This class saves all the settings as you adjust them.  This way, when you close the program and reopen it, all your settings will automatically load as they were just after the last adjustement
