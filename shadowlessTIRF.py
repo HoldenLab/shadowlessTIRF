@@ -20,7 +20,8 @@ The green laser (Laser 2) is pin 30 (ao6).  Ground is pin 31.
 To Use:
 Run this program with python.  
 
-Radius: 0-5V
+Radius: 0-1V #Actually goes up to 5V but we never use more than 0.5V so reduced this for better control
+
 x_shift:-10 -10V
 y_shift:-10 -10V
     
@@ -33,6 +34,11 @@ TTL control info:
 Green laser is active low
 Blue laser is active high
 Blue laser requires "Digital:Power" mode in 'Coherent Connection' software to be operated via ttl pulse.
+
+SAFETY: Setting the beam radius at intermediate values between Epi and HILO can put the beam in a range where
+eyestrike risk is quite high.
+Have implemented excluded range radius limits as hardcoded voltages in variable 'RADIUS_SAFE_LIMIT'
+
 """
 from __future__ import division
 import os
@@ -56,7 +62,9 @@ else:
 import os, time
 from os.path import expanduser
 
+################################################################################
 #HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment
+#################################################################################
 RADIUS_SAFE_LIMIT = [0.1, 0.3];
 DEBUG_LASER_SAFE = True;
 
@@ -359,7 +367,7 @@ class MainGui(QWidget):
         self.settings=Settings()
         self.galvoDriver=GalvoDriver(self.settings)
         frequency=FrequencySlider(3); frequency.setRange(0,500)
-        radius=SliderLabel(4); radius.setRange(0,5)
+        radius=SliderLabel(4); radius.setRange(0,1.0)
         ellipticity=SliderLabel(3); ellipticity.setRange(0,2.5)
         phase=SliderLabel(3); phase.setRange(-90,90)
         x_shift=SliderLabel(4); x_shift.setRange(-10,10)
@@ -413,7 +421,12 @@ class MainGui(QWidget):
         self.layout=QVBoxLayout()
         self.layout.addLayout(formlayout)
         self.layout.addWidget(membox)
-        self.layout.addSpacing(100)
+        self.safety_label = QLabel("WARNING: Beam radii from "
+                                + str(RADIUS_SAFE_LIMIT[0]) + "V to " + str(RADIUS_SAFE_LIMIT[1]) 
+                                + "V are ignored to reduce risk of eyestrike")
+        self.layout.addSpacing(50);
+        self.layout.addWidget(self.safety_label);
+        self.layout.addSpacing(50);
         self.layout.addLayout(stopacquirebox)
         self.setLayout(self.layout)
         self.connectToChangeSignal()
