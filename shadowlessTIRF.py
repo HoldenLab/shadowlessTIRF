@@ -56,7 +56,7 @@ else:
 import os, time
 from os.path import expanduser
 
-#HARDCODED SAFETY LIMITS ON THE RADIUS
+#HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment
 RADIUS_SAFE_LIMIT = [0.0, 5.0];
 
 
