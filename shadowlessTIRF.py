@@ -108,11 +108,14 @@ class GalvoDriver(QWidget):
         self.analog_output.CreateAOVoltageChan("Dev1/ao1","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao3 is pin 25 and ground is 24
         
         #CAMERATTL
+        #Below line relates to camera TTL mode might need to figure out how to get this running if doing fast acquisitions
+        #self.analog_output.CreateAOVoltageChan("Dev2/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59                
          
                         #  CfgSampClkTiming(source, rate, activeEdge, sampleMode, sampsPerChan) 
         self.analog_output.CfgSampClkTiming("",self.sample_rate,DAQmx_Val_Rising,DAQmx_Val_ContSamps,self.sampsPerPeriod)
                         #  WriteAnalogF64(numSampsPerChan, autoStart, timeout, dataLayout, writeArray, sampsPerChanWritten, reserved)
         self.analog_output.WriteAnalogF64(self.sampsPerPeriod,0,-1,DAQmx_Val_GroupByChannel,self.data,byref(self.read),None) 
+        
         self.analog_output.StartTask()
         self.stopped=False
         self.acquiring=False
@@ -120,7 +123,7 @@ class GalvoDriver(QWidget):
         
         
         
-    def getSinCosTTL(self,frequency,radius,ellipticity,phase,x_shift,y_shift,blue_laser,green_laser,blue_laser_power,green_laser_power,period=.005):
+    def getSinCosTTL(self,frequency,radius,ellipticity,phase,x_shift,y_shift,period=.005):
         # The period argument is only used when the value of the frequency is 0
         if frequency==0:
             t=np.arange(0,period,1/self.sample_rate)
