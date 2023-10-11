@@ -342,7 +342,7 @@ class MainGui(QWidget):
         
         self.safety_label = QLabel("WARNING: Beam radii from "
                                 + str(RADIUS_SAFE_LIMIT[0]) + "V to " + str(RADIUS_SAFE_LIMIT[1]) 
-                                + "V are ignored to reduce risk of eyestrike")
+                                + "V are ignored to reduce risk of laser eye strike")
         
         self.layout.addWidget(self.safety_label);
         self.layout.addSpacing(50);
