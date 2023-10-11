@@ -2,6 +2,7 @@
 """
 Created on Fri Jun 20 19:06:55 2014
 @author: Kyle Ellefsen
+Updates for compatibility with LifeHack microscope by Seamus Holden and Josh Edwards
 
 This program controls the mirrors attached to the galvos.   The position of one mirror is controlled by a sine wave, the other mirror is controlled by a cosine wave.  
 When a laser is reflected off both mirrors, it spins in a circle.  This can be used to position the laser for shadowless TIRF microscopy.  
@@ -18,15 +19,8 @@ The green laser (Laser 2) is pin 30 (ao6).  Ground is pin 31.
 
 To Use:
 Run this program with python.  
-Open MetaMorph.  In MetaMorph:
-    Acquire->Acquire
-        Trigger Mode: External (STROBED)
-        Live Trigger Mode: External (STROBED)
-    Acquire->Stream Acquisition->Camera Parameters
-        Aquisition Mode: Acquire images from each extrnal trigger
-        Make sure, if you check 'Display preview image during acquisition', that you aren't updating too often, or you will miss frames.
 
-Radius: 0-10V
+Radius: 0-5V
 x_shift:-10 -10V
 y_shift:-10 -10V
     
@@ -61,6 +55,9 @@ else:
     import pickle
 import os, time
 from os.path import expanduser
+
+#HARDCODED SAFETY LIMITS ON THE RADIUS
+RADIUS_SAFE_LIMIT = [0.0, 5.0];
 
 
 class Settings:
@@ -164,7 +161,16 @@ class GalvoDriver(QWidget):
         return sinwave,coswave,camera_ttl, blue_laser_ttl, green_laser_ttl
     def calculate(self):
         s=self.settings
+   
+        
         if s['alternate12'] is False and s['alternate123'] is False:
+            #HARDCODED SAFETY LIMITS ON THE RADIUS
+            #ONLY IMPLEMENTED FOR NON ALTERNATING MODE AS THATS ALL WE USE
+            if s['radius'] > RADIUS_SAFE_LIMIT[0]:
+                s['radius'] = RADIUS_SAFE_LIMIT[0];
+            elif s['radius'] < RADIUS_SAFE_LIMIT[1]:
+                s['radius'] = RADIUS_SAFE_LIMIT[1];
+            
             sinwave,coswave,camera_ttl,blue_laser_ttl, green_laser_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'],s['blue_laser'],s['green_laser'],s['blue_laser_power'],s['green_laser_power'])
             self.data=np.concatenate((sinwave,coswave,camera_ttl,blue_laser_ttl,green_laser_ttl))
             self.sampsPerPeriod=len(sinwave)
@@ -480,7 +486,6 @@ class MainGui(QWidget):
 
   
 if __name__ == '__main__':
-    print("hello world")
     app = QApplication(sys.argv)
     maingui=MainGui()
     sys.exit(app.exec_())
