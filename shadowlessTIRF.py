@@ -126,12 +126,13 @@ class GalvoDriver(QWidget):
     def getSinCosTTL(self,frequency,radius,ellipticity,phase,x_shift,y_shift,period=.005):
         # The period argument is only used when the value of the frequency is 0
         if frequency==0:
-            t=np.arange(0,period,1/self.sample_rate)
+            t=np.linspace(0, period, 10, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
             sinwave=radius*np.sin(np.zeros(len(t)))+x_shift
             coswave=(ellipticity*radius*np.cos(np.zeros(len(t))+phase*(2*np.pi/360)))+(y_shift)
         else:
             period=1/frequency
-            t=np.arange(0,period,1/self.sample_rate )
+            num = int(round(period*self.sample_rate))
+            t=np.linspace(0, period, 100, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
             sinwave=radius*np.sin(frequency*(t*(2*np.pi)))+x_shift
             coswave=(ellipticity*radius*np.cos(frequency*t*2*np.pi+phase*(2*np.pi/360)))+(y_shift)
         
