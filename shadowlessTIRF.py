@@ -54,7 +54,7 @@ import os, time
 from os.path import expanduser
 
 ################################################################################
-#HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment
+#HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment - safe values are microscope dependant
 #################################################################################
 RADIUS_SAFE_LIMIT = [0.2, 0.35]; 
 DEBUG_LASER_SAFE = False;
