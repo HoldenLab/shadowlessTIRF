@@ -11,3 +11,5 @@ You will need an internet connection to install this software.
 3) Download this respository. 
 
 4) Double click the shadowlessTIRF.bat file. This should install all the dependencies and start the program. 
+
+5) Hardware and interface instructions are contained within the <a href="https://holdenlab.github.io/LifeHackWebsite/">LifeHack microscope website</a>.
