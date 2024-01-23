@@ -70,7 +70,7 @@ class Settings:
             a=dict()
             a['frequency']=50 #Hz
             a['radius']=5 #in volts.  Max amplitude is 10 volts
-            a['ellipticity']=1
+            a['ellipticity']=0
             a['phase']=0
             a['x_shift']=-1
             a['y_shift']=1
@@ -127,14 +127,20 @@ class GalvoDriver(QWidget):
         # The period argument is only used when the value of the frequency is 0
         if frequency==0:
             t=np.linspace(0, period, 10, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
-            sinwave=radius*np.sin(np.zeros(len(t)))+x_shift
-            coswave=(ellipticity*radius*np.cos(np.zeros(len(t))+phase*(2*np.pi/360)))+(y_shift)
+            sinwave=(1-ellipticity)*radius*np.sin(np.zeros(len(t))+phase*(2*np.pi/360))+x_shift
+            coswave=(1+ellipticity)*radius*np.cos(np.zeros(len(t))+phase*(2*np.pi/360))+(y_shift)
+        elif frequency==0.2:
+            period=1/frequency
+            num = int(round(period*self.sample_rate))
+            t=np.linspace(0, period, 50000, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
+            sinwave=(1-ellipticity)*radius*np.sin(frequency*t*2*np.pi+phase*(2*np.pi/360))+x_shift
+            coswave=(1+ellipticity)*radius*np.cos(frequency*t*2*np.pi+phase*(2*np.pi/360))+(y_shift)
         else:
             period=1/frequency
             num = int(round(period*self.sample_rate))
-            t=np.linspace(0, period, 100, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
-            sinwave=radius*np.sin(frequency*(t*(2*np.pi)))+x_shift
-            coswave=(ellipticity*radius*np.cos(frequency*t*2*np.pi+phase*(2*np.pi/360)))+(y_shift)
+            t=np.linspace(0, period, 50, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
+            sinwave=(1-ellipticity)*radius*np.sin(frequency*t*2*np.pi+phase*(2*np.pi/360))+x_shift
+            coswave=(1+ellipticity)*radius*np.cos(frequency*t*2*np.pi+phase*(2*np.pi/360))+(y_shift)
         
         camera_ttl=np.zeros(len(t))
         camera_ttl[0]=5    
@@ -296,8 +302,8 @@ class MainGui(QWidget):
         self.galvoDriver=GalvoDriver(self.settings)
         frequency=FrequencySlider(3); frequency.setRange(0,500)
         radius=SliderLabel(4); radius.setRange(0,1.0)
-        ellipticity=SliderLabel(3); ellipticity.setRange(0,2.5)
-        phase=SliderLabel(3); phase.setRange(-90,90)
+        ellipticity=SliderLabel(3); ellipticity.setRange(-1,1)
+        phase=SliderLabel(3); phase.setRange(-180,180)
         x_shift=SliderLabel(4); x_shift.setRange(-10,10)
         y_shift=SliderLabel(4); y_shift.setRange(-10,10)
         self.items=[]
