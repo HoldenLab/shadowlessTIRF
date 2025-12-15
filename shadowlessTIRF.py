@@ -34,15 +34,16 @@ Have implemented excluded range radius limits as hardcoded voltages in variable 
 from __future__ import division
 import os
 os.chdir(os.path.split(os.path.realpath(__file__))[0])
-import dependency_check
+# import dependency_check
 from PyDAQmx import *   #TODO have a look in here to understand c back end
 from PyDAQmx.DAQmxCallBack import *
 import numpy as np
-from PyQt4 import QtGui
-from PyQt4.QtGui import * # Qt is Nokias GUI rendering code written in C++.  PyQt4 is a library in python which binds to Qt
-from PyQt4.QtCore import *
-from PyQt4.QtCore import pyqtSignal as Signal
-from PyQt4.QtCore import pyqtSlot  as Slot
+from PyQt5 import QtGui
+from PyQt5.QtGui import * # Qt is Nokias GUI rendering code written in C++.  PyQt4 is a library in python which binds to Qt
+from PyQt5.QtCore import *
+from PyQt5.QtCore import pyqtSignal as Signal
+from PyQt5.QtCore import pyqtSlot  as Slot
+from PyQt5.QtWidgets import * # This is the Qt library for the GUI
 import sys
 from ctypes import byref
 
@@ -56,7 +57,7 @@ from os.path import expanduser
 ################################################################################
 #HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment - safe values are microscope dependant
 #################################################################################
-RADIUS_SAFE_LIMIT = [0.201, 0.299]; 
+RADIUS_SAFE_LIMIT = [0.2, 0.299]; 
 DEBUG_LASER_SAFE = False;
 
 class Settings:
@@ -251,7 +252,7 @@ class SliderLabel(QWidget):
         self.slider.valueChanged.connect(lambda val: self.updateLabel(val/10**self.decimals))
         self.label.valueChanged.connect(self.updateSlider)
         self.valueChanged=self.label.valueChanged
-    @Slot(int, float)
+
     def updateSlider(self,value):
         self.slider.setValue(int(value*10**self.decimals))
     def updateLabel(self,value):
@@ -259,7 +260,7 @@ class SliderLabel(QWidget):
     def value(self):
         return self.label.value()
     def setRange(self,minn,maxx):
-        self.slider.setRange(minn*10**self.decimals,maxx*10**self.decimals)
+        self.slider.setRange(int(minn*10**self.decimals),int(maxx*10**self.decimals))
         self.label.setRange(minn,maxx)
     def setMinimum(self,minn):
         self.slider.setMinimum(minn*10**self.decimals)
