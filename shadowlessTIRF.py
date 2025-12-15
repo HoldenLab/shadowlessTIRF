@@ -2,6 +2,7 @@
 """
 Created on Fri Jun 20 19:06:55 2014
 @author: Kyle Ellefsen
+Updates for compatibility with LifeHack microscope by Seamus Holden and Josh Edwards
 
 This program controls the mirrors attached to the galvos.   The position of one mirror is controlled by a sine wave, the other mirror is controlled by a cosine wave.  
 When a laser is reflected off both mirrors, it spins in a circle.  This can be used to position the laser for shadowless TIRF microscopy.  
@@ -10,47 +11,39 @@ Make sure that the National Instruments DAC PCI-6733 is "Dev1" with the National
 To view pins, look at http://www.ni.com/pdf/manuals/371232b.pdf figure 4. 
 - Pin 57 (ao2) is the sine wave.  
 - Pin 25 (ao3) is the cosine wave.  
+
+NOTE: The TTL sync code for the camera is currently disabled - to enable need to add back in commented #CAMERATTL code
 - Pin 60 (ao4) is the ttl pulse which is which is triggered at the beginning of every period and should be plugged into Pin 1 (top right) of the Cascade Photometrics Model 128 camera. 
 - Pin 69 (analog ground) should be plugged into Pin 3 of the Camera (top, third pin from right). 
 
-The blue laser (Laser 1) is pin 28 (ao5). Ground is pin 29.
-The green laser (Laser 2) is pin 30 (ao6).  Ground is pin 31.
 
 To Use:
 Run this program with python.  
-Open MetaMorph.  In MetaMorph:
-    Acquire->Acquire
-        Trigger Mode: External (STROBED)
-        Live Trigger Mode: External (STROBED)
-    Acquire->Stream Acquisition->Camera Parameters
-        Aquisition Mode: Acquire images from each extrnal trigger
-        Make sure, if you check 'Display preview image during acquisition', that you aren't updating too often, or you will miss frames.
 
-Radius: 0-10V
+Radius: 0-1V #Actually goes up to 5V but we never use more than 0.5V so reduced this for better control
+
 x_shift:-10 -10V
 y_shift:-10 -10V
     
-LASER CONTROL:
-WIRES:
-green  - ground
-blue   - blue laser (488nm)
-yellow - green laser
-TTL control info:
-Green laser is active low
-Blue laser is active high
-Blue laser requires "Digital:Power" mode in 'Coherent Connection' software to be operated via ttl pulse.
+
+SAFETY: Setting the beam radius at intermediate values between Epi and HILO can put the beam in a range where
+eyestrike risk is quite high.
+Have implemented excluded range radius limits as hardcoded voltages in variable 'RADIUS_SAFE_LIMIT'
+
 """
 from __future__ import division
 import os
 os.chdir(os.path.split(os.path.realpath(__file__))[0])
-import dependency_check
-from PyDAQmx import *
+# import dependency_check
+from PyDAQmx import *   #TODO have a look in here to understand c back end
 from PyDAQmx.DAQmxCallBack import *
 import numpy as np
-from PyQt4.QtGui import * # Qt is Nokias GUI rendering code written in C++.  PyQt4 is a library in python which binds to Qt
-from PyQt4.QtCore import *
-from PyQt4.QtCore import pyqtSignal as Signal
-from PyQt4.QtCore import pyqtSlot  as Slot
+from PyQt5 import QtGui
+from PyQt5.QtGui import * # Qt is Nokias GUI rendering code written in C++.  PyQt4 is a library in python which binds to Qt
+from PyQt5.QtCore import *
+from PyQt5.QtCore import pyqtSignal as Signal
+from PyQt5.QtCore import pyqtSlot  as Slot
+from PyQt5.QtWidgets import * # This is the Qt library for the GUI
 import sys
 from ctypes import byref
 
@@ -61,13 +54,18 @@ else:
 import os, time
 from os.path import expanduser
 
+################################################################################
+#HARDCODED SAFETY LIMITS ON THE TIRF/ HILO RADIUS - to minimise risk of eyestrike during use or alignment - safe values are microscope dependant
+#################################################################################
+RADIUS_SAFE_LIMIT = [0.2, 0.35]; 
+DEBUG_LASER_SAFE = False;
 
 class Settings:
-    ''' This class saves all the settings as you adjust them.  This way, when you close the program and reopen it, all your settings will automatically load as they were just after the last adjustement'''
+    # This class saves all the settings as you adjust them.  This way, when you close the program and reopen it, all your settings will automatically load as they were just after the last adjustement
     def __init__(self):
         self.i=0
         self.config_file=os.path.join(expanduser("~"),'.ShadowlessTIRF','config.p')
-        try:
+        try:    
             self.d=pickle.load(open(self.config_file, "rb" ))
         except IOError:
             a=dict()
@@ -75,14 +73,8 @@ class Settings:
             a['radius']=5 #in volts.  Max amplitude is 10 volts
             a['ellipticity']=1
             a['phase']=0
-            a['x_shift']=0
-            a['y_shift']=0
-            a['alternate12']=False # When this is true, settings 1 and 2 are alternated every cycle.
-            a['alternate123']=False # When this is true, settings 1,2 and 3 are cycled through.
-            a['blue_laser']=False
-            a['green_laser']=False
-            a['green_laser_power']=5 #in volts
-            a['blue_laser_power']=5 #in volts
+            a['x_shift']=-1
+            a['y_shift']=1
             self.d=[a,a.copy(),a.copy(),a.copy()]
     def __getitem__(self, item):
         return self.d[self.i][item]
@@ -97,9 +89,9 @@ class Settings:
         return self.d[self.i].keys()
         
 
-        
+
 class GalvoDriver(QWidget):
-    ''' This class sends creates the signal which will control the two galvos and the lasers, and sends it to the DAQ.'''
+    #This class sends creates the signal which will control the two galvos, and sends it to the DAQ.
     finished_acquire_sig=Signal()
     def __init__(self,settings):
         QWidget.__init__(self)
@@ -115,15 +107,16 @@ class GalvoDriver(QWidget):
         self.analog_output = Task()
         self.analog_output.CreateAOVoltageChan("Dev1/ao2","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao2 is pin 57 and ground is 56
         self.analog_output.CreateAOVoltageChan("Dev1/ao3","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao3 is pin 25 and ground is 24
-        self.analog_output.CreateAOVoltageChan("Dev1/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59
-        self.analog_output.CreateAOVoltageChan("Dev1/ao5","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao5 is pin 28 and ground is 29. This is blue laser
-        self.analog_output.CreateAOVoltageChan("Dev1/ao6","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao6 is pin 30 and ground is 31. This is green laser
-
-
-                        #  CfgSampClkTiming(source, rate, activeEdge, sampleMode, sampsPerChan)
+        
+        #CAMERATTL
+        #Below line relates to camera TTL mode might need to figure out how to get this running if doing fast acquisitions
+        #self.analog_output.CreateAOVoltageChan("Dev2/ao4","",-10.0,10.0,DAQmx_Val_Volts,None) #On the NI PCI-6733, ao4 is pin 60 and ground is 59                
+         
+                        #  CfgSampClkTiming(source, rate, activeEdge, sampleMode, sampsPerChan) 
         self.analog_output.CfgSampClkTiming("",self.sample_rate,DAQmx_Val_Rising,DAQmx_Val_ContSamps,self.sampsPerPeriod)
                         #  WriteAnalogF64(numSampsPerChan, autoStart, timeout, dataLayout, writeArray, sampsPerChanWritten, reserved)
         self.analog_output.WriteAnalogF64(self.sampsPerPeriod,0,-1,DAQmx_Val_GroupByChannel,self.data,byref(self.read),None) 
+        
         self.analog_output.StartTask()
         self.stopped=False
         self.acquiring=False
@@ -131,82 +124,37 @@ class GalvoDriver(QWidget):
         
         
         
-    def getSinCosTTL(self,frequency,radius,ellipticity,phase,x_shift,y_shift,blue_laser,green_laser,blue_laser_power,green_laser_power,period=.005):
-        ''' The period argument is only used when the value of the frequency is 0'''
+    def getSinCosTTL(self,frequency,radius,ellipticity,phase,x_shift,y_shift,period=.005):
+        # The period argument is only used when the value of the frequency is 0
         if frequency==0:
-            t=np.arange(0,period,1/self.sample_rate)
+            t=np.linspace(0, period, 10, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
             sinwave=radius*np.sin(np.zeros(len(t)))+x_shift
             coswave=(ellipticity*radius*np.cos(np.zeros(len(t))+phase*(2*np.pi/360)))+(y_shift)
         else:
             period=1/frequency
-            t=np.arange(0,period,1/self.sample_rate )
+            num = int(round(period*self.sample_rate))
+            t=np.linspace(0, period, 100, endpoint=False, retstep=False, dtype=np.float64) # Switched from arange to Linspace and set num at 100 to avoid aliasing num=100 should be fine until freq>1000Hz 231129 JE
             sinwave=radius*np.sin(frequency*(t*(2*np.pi)))+x_shift
             coswave=(ellipticity*radius*np.cos(frequency*t*2*np.pi+phase*(2*np.pi/360)))+(y_shift)
-            camera_ttl=np.zeros(len(t))
-            camera_ttl[0]=5
+        
         camera_ttl=np.zeros(len(t))
-        camera_ttl[0]=5
-        if blue_laser:
-            blue_laser_ttl=blue_laser_power*np.ones(len(t))
-            #a=len(t)
-            #blue_laser_ttl[a/8:3*a/8]=blue_laser_power #right
-            #blue_laser_ttl[3*a/8:5*a/8]=blue_laser_power #bottom
-            #blue_laser_ttl[5*a/8:7*a/8]=blue_laser_power #left
-            #blue_laser_ttl[:a/8]=blue_laser_power; blue_laser_ttl[7*a/8:]=blue_laser_power #top
-            
-        else:
-            blue_laser_ttl=-.08*np.ones(len(t))
-        if green_laser:
-            green_laser_ttl=green_laser_power*np.ones(len(t)) #0V is on for green laser
-        else:
-            green_laser_ttl=-.08*np.ones(len(t)) #5V is off for green laser
-        return sinwave,coswave,camera_ttl, blue_laser_ttl, green_laser_ttl
+        camera_ttl[0]=5    
+        
+        return sinwave,coswave,camera_ttl
     def calculate(self):
         s=self.settings
-        if s['alternate12'] is False and s['alternate123'] is False:
-            sinwave,coswave,camera_ttl,blue_laser_ttl, green_laser_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'],s['blue_laser'],s['green_laser'],s['blue_laser_power'],s['green_laser_power'])
-            self.data=np.concatenate((sinwave,coswave,camera_ttl,blue_laser_ttl,green_laser_ttl))
-            self.sampsPerPeriod=len(sinwave)
-        elif s['alternate12']:
-            f1=s.d[1]['frequency']
-            f2=s.d[2]['frequency']
-            if f1==0 and f2==0:
-                period1=.005; period2=.005; #Alternate every 5ms if there is the frequency for both setting #1 and setting #2 is 0
-            elif f1==0:
-                period1=1/f2; period2=period1 #Give adopt the period of setting #2 if the frequency for setting #1 is 0
-            elif f2==0:
-                period1=1/f1; period2=period1
-            else:
-                period1=1/f1; period2=1/f2
-            sinwave1,coswave1,camera_ttl1,blue_laser_ttl1,green_laser_ttl1=self.getSinCosTTL(f1,s.d[1]['radius'],s.d[1]['ellipticity'],s.d[1]['phase'],s.d[1]['x_shift'],s.d[1]['y_shift'],s.d[1]['blue_laser'],s.d[1]['green_laser'],s.d[1]['blue_laser_power'],s.d[1]['green_laser_power'],period1)
-            sinwave2,coswave2,camera_ttl2,blue_laser_ttl2,green_laser_ttl2=self.getSinCosTTL(f2,s.d[2]['radius'],s.d[2]['ellipticity'],s.d[2]['phase'],s.d[2]['x_shift'],s.d[2]['y_shift'],s.d[2]['blue_laser'],s.d[2]['green_laser'],s.d[2]['blue_laser_power'],s.d[2]['green_laser_power'],period2)
-            self.data=np.concatenate((sinwave1,sinwave2,coswave1,coswave2,camera_ttl1,camera_ttl2,blue_laser_ttl1,blue_laser_ttl2,green_laser_ttl1,green_laser_ttl2))
-            self.sampsPerPeriod=len(sinwave1)+len(sinwave2)
-        elif s['alternate123']:
-            f1=s.d[1]['frequency']
-            f2=s.d[2]['frequency']
-            f3=s.d[3]['frequency']
-            if f1==0 and f2==0 and f3==0:
-                period1=.005; period2=.005; period3=.005;
-            elif f1==0 and f2==0:
-                period3=1/f3; period2=period3; period1=period3;
-            elif f1==0 and f3==0:
-                period2=1/f2; period1=period2; period3=period2
-            elif f2==0 and f3==0:
-                period1=1/f1; period2=period1; period3=period1
-            elif f1==0:
-                period2=1/f2; period3=1/f3; period1=period2
-            elif f2==0:
-                period1=1/f1; period2=period1; period3=1/f3
-            elif f3==0:
-                period1=1/f1; period2=1/f2; period3=period1
-            else:
-                period1=1/f1; period2=1/f2; period3=1/f3
-            sinwave1,coswave1,camera_ttl1,blue_laser_ttl1,green_laser_ttl1=self.getSinCosTTL(f1,s.d[1]['radius'],s.d[1]['ellipticity'],s.d[1]['phase'],s.d[1]['x_shift'],s.d[1]['y_shift'],s.d[1]['blue_laser'],s.d[1]['green_laser'],s.d[1]['blue_laser_power'],s.d[1]['green_laser_power'],period1)
-            sinwave2,coswave2,camera_ttl2,blue_laser_ttl2,green_laser_ttl2=self.getSinCosTTL(f2,s.d[2]['radius'],s.d[2]['ellipticity'],s.d[2]['phase'],s.d[2]['x_shift'],s.d[2]['y_shift'],s.d[2]['blue_laser'],s.d[2]['green_laser'],s.d[2]['blue_laser_power'],s.d[2]['green_laser_power'],period2)
-            sinwave3,coswave3,camera_ttl3,blue_laser_ttl3,green_laser_ttl3=self.getSinCosTTL(f3,s.d[3]['radius'],s.d[3]['ellipticity'],s.d[3]['phase'],s.d[3]['x_shift'],s.d[3]['y_shift'],s.d[3]['blue_laser'],s.d[3]['green_laser'],s.d[3]['blue_laser_power'],s.d[3]['green_laser_power'],period3)
-            self.data=np.concatenate((sinwave1,sinwave2,sinwave3,coswave1,coswave2,coswave3,camera_ttl1,camera_ttl2,camera_ttl3,blue_laser_ttl1,blue_laser_ttl2,blue_laser_ttl3,green_laser_ttl1,green_laser_ttl2,green_laser_ttl3))
-            self.sampsPerPeriod=len(sinwave1)+len(sinwave2)+len(sinwave3)
+          
+        #HARDCODED SAFETY LIMITS ON THE RADIUS
+        #ONLY IMPLEMENTED FOR NON ALTERNATING MODE AS THATS ALL WE USE
+        if s['radius'] > RADIUS_SAFE_LIMIT[0] and s['radius'] < RADIUS_SAFE_LIMIT[1]:
+            s['radius'] = RADIUS_SAFE_LIMIT[0];
+        if DEBUG_LASER_SAFE:
+            print(s['radius']);
+            
+        sinwave,coswave,camera_ttl=self.getSinCosTTL(s['frequency'],s['radius'],s['ellipticity'],s['phase'],s['x_shift'],s['y_shift'])
+        self.data=np.concatenate((sinwave,coswave,camera_ttl))
+        self.sampsPerPeriod=len(sinwave)
+    
     def startstop(self):
         if self.stopped:
             self.analog_output.StartTask()
@@ -231,12 +179,10 @@ class GalvoDriver(QWidget):
         self.acquiring=True
         self.counter=0
         self.tic=time.time()
-        radius=self.settings.d[0]['radius']; alternate12=self.settings.d[0]['alternate12']; alternate123=self.settings.d[0]['alternate123']
+        radius=self.settings.d[0]['radius']; 
         self.settings['radius']=.6
-        self.settings['alternate12']=False
-        self.settings['alternate123']=False
         self.calculate()
-        self.settings['radius']=radius; self.settings['alternate12']=alternate12; self.settings['alternate123']=alternate123
+        self.settings['radius']=radius; 
         if self.stopped is False:
             self.analog_output.StopTask()
         self.EveryNCallback = DAQmxEveryNSamplesEventCallbackPtr(self.EveryNCallback_py)
@@ -264,25 +210,22 @@ class GalvoDriver(QWidget):
     def stopAcquiring(self):
         self.settings.d[0]['frequency']=0
         self.settings.d[0]['radius']=.6
-        self.settings.d[0]['alternate12']=False
-        self.settings.d[0]['alternate123']=False
         self.calculate()
         self.createTask()
         self.startstop()
         self.acquiring=False
         self.finished_acquire_sig.emit()
         #maingui.acquireButton.setStyleSheet("background-color: green");
-            
         
-        
-
+'''
+'''
 ##############################################################################
 ####   GRAPHICAL USER INTERFACE ##############################################
 ##############################################################################
 class SliderLabel(QWidget):
-    '''SliderLabel is a widget containing a QSlider and a QSpinBox (or QDoubleSpinBox if decimals are required)
-    The QSlider and SpinBox are connected so that a change in one causes the other to change. 
-    '''
+    #SliderLabel is a widget containing a QSlider and a QSpinBox (or QDoubleSpinBox if decimals are required)
+    #The QSlider and SpinBox are connected so that a change in one causes the other to change. 
+
     changeSignal=Signal(int)
     def __init__(self,decimals=0): #decimals specifies the resolution of the slider.  0 means only integers,  1 means the tens place, etc.
         QWidget.__init__(self)
@@ -303,7 +246,7 @@ class SliderLabel(QWidget):
         self.slider.valueChanged.connect(lambda val: self.updateLabel(val/10**self.decimals))
         self.label.valueChanged.connect(self.updateSlider)
         self.valueChanged=self.label.valueChanged
-    @Slot(int, float)
+
     def updateSlider(self,value):
         self.slider.setValue(int(value*10**self.decimals))
     def updateLabel(self,value):
@@ -311,7 +254,7 @@ class SliderLabel(QWidget):
     def value(self):
         return self.label.value()
     def setRange(self,minn,maxx):
-        self.slider.setRange(minn*10**self.decimals,maxx*10**self.decimals)
+        self.slider.setRange(int(minn*10**self.decimals),int(maxx*10**self.decimals))
         self.label.setRange(minn,maxx)
     def setMinimum(self,minn):
         self.slider.setMinimum(minn*10**self.decimals)
@@ -323,8 +266,8 @@ class SliderLabel(QWidget):
         self.slider.setValue(value*10**self.decimals)
         self.label.setValue(value)
 class FrequencySlider(SliderLabel):
-    '''This is a modified SliderLabel class that prevents the user from setting a value between 0 and 1.  This controls the frequency of the sin wave.  Otherwise, the period could be too long, and you can only update any values at phase=0.
-    '''
+    #This is a modified SliderLabel class that prevents the user from setting a value between 0 and 1.  This controls the frequency of the sin wave.  Otherwise, the period could be too long, and you can only update any values at phase=0.
+
     def __init__(self,demicals=0):
         SliderLabel.__init__(self,demicals)
     def updateSlider(self,value):
@@ -336,15 +279,14 @@ class FrequencySlider(SliderLabel):
             value=0
         self.label.setValue(value)
 class CheckBox(QCheckBox):
-    ''' I overwrote the QCheckBox class so that every graphical element has the method 'setValue'
-    '''
+    # I overwrote the QCheckBox class so that every graphical element has the method 'setValue'
     def __init__(self,parent=None):
         QCheckBox.__init__(self,parent)
     def setValue(self,value):
         self.setChecked(value)
 
 class MainGui(QWidget):
-    ''' This class creates and controls the GUI '''
+    #This class creates and controls the GUI
     changeSignal=Signal()
     def __init__(self):
         QWidget.__init__(self)
@@ -354,13 +296,11 @@ class MainGui(QWidget):
         self.settings=Settings()
         self.galvoDriver=GalvoDriver(self.settings)
         frequency=FrequencySlider(3); frequency.setRange(0,500)
-        radius=SliderLabel(4); radius.setRange(0,2)
+        radius=SliderLabel(4); radius.setRange(0,1.0)
         ellipticity=SliderLabel(3); ellipticity.setRange(0,2.5)
         phase=SliderLabel(3); phase.setRange(-90,90)
         x_shift=SliderLabel(4); x_shift.setRange(-10,10)
         y_shift=SliderLabel(4); y_shift.setRange(-10,10)
-        blue_laser_power=SliderLabel(3); blue_laser_power.setRange(-.08,5)
-        green_laser_power=SliderLabel(3); green_laser_power.setRange(-.08,5)
         self.items=[]
         self.items.append({'name':'frequency','string':'Frequency (Hz)','object':frequency})
         self.items.append({'name':'radius','string':'Radius','object':radius})
@@ -368,20 +308,12 @@ class MainGui(QWidget):
         self.items.append({'name':'phase','string':'Phase','object':phase})
         self.items.append({'name':'x_shift','string':'x-shift','object':x_shift})
         self.items.append({'name':'y_shift','string':'y-shift','object':y_shift})
-        self.items.append({'name':'blue_laser','string':'Laser 1 On','object':CheckBox()})
-        self.items.append({'name':'green_laser','string':'Laser 2 On','object':CheckBox()})
-        self.items.append({'name':'blue_laser_power','string':'Laser 1 Power','object':blue_laser_power})
-        self.items.append({'name':'green_laser_power','string':'Laser 2 Power','object':green_laser_power})
-        alternate12=CheckBox(); alternate123=CheckBox();
-        self.items.append({'name':'alternate12','string':'Alternate between Setting 1 and Setting 2 every cycle','object':alternate12})
-        self.items.append({'name':'alternate123','string':'Alternate between Setting 1, 2, and 3 every cycle','object':alternate123})
+
+
         for item in self.items:
             formlayout.addRow(item['string'],item['object'])
             item['object'].setValue(self.settings[item['name']])
             
-        
-        
-        
         self.save1=QPushButton('Save'); self.save1.setStyleSheet("background-color: red"); self.save1.clicked.connect(lambda: self.memstore(1))
         self.save2=QPushButton('Save'); self.save2.setStyleSheet("background-color: red"); self.save2.clicked.connect(lambda: self.memstore(2))
         self.save3=QPushButton('Save'); self.save3.setStyleSheet("background-color: red"); self.save3.clicked.connect(lambda: self.memstore(3))
@@ -408,7 +340,14 @@ class MainGui(QWidget):
         self.layout=QVBoxLayout()
         self.layout.addLayout(formlayout)
         self.layout.addWidget(membox)
-        self.layout.addSpacing(100)
+        self.layout.addSpacing(50);     
+        
+        self.safety_label = QLabel("WARNING: Beam radii from "
+                                + str(RADIUS_SAFE_LIMIT[0]) + "V to " + str(RADIUS_SAFE_LIMIT[1]) 
+                                + "V are ignored to reduce risk of laser eye strike")
+        
+        self.layout.addWidget(self.safety_label);
+        self.layout.addSpacing(50);
         self.layout.addLayout(stopacquirebox)
         self.setLayout(self.layout)
         self.connectToChangeSignal()
@@ -437,7 +376,7 @@ class MainGui(QWidget):
             self.settings[item['name']]=item['value']
         self.galvoDriver.refresh()
     def memrecall(self,i):
-        '''i is the setting number we are recalling'''
+        #i is the setting number we are recalling
         self.changeSignal.disconnect(self.updateValues)
         s=self.settings
         s.d[0]=s.d[i].copy()
@@ -446,7 +385,7 @@ class MainGui(QWidget):
         self.changeSignal.connect(self.updateValues)
         self.galvoDriver.refresh()
     def memstore(self,i):
-        '''i is the setting number we are storing.  settings.d[0] is always the current setting.'''
+        #i is the setting number we are storing.  settings.d[0] is always the current setting.
         self.settings.d[i]=self.settings.d[0].copy()
         self.settings.save()
     def acquire(self):
@@ -479,9 +418,9 @@ class MainGui(QWidget):
             self.acquireButton.hide()
 
 
-    
+  
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     maingui=MainGui()
     sys.exit(app.exec_())
-    
+  
