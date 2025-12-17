@@ -269,7 +269,7 @@ class SliderLabel(QWidget):
         self.slider.setMaximum(maxx*10**self.decimals)
         self.label.setMaximum(maxx)
     def setValue(self,value):
-        self.slider.setValue(value*10**self.decimals)
+        self.slider.setValue(int(value*10**self.decimals)) #converts dtype to int but the number should already be an integer with a hanging .0 so no numerical impact
         self.label.setValue(value)
 class FrequencySlider(SliderLabel):
     #This is a modified SliderLabel class that prevents the user from setting a value between 0 and 1.  This controls the frequency of the sin wave.  Otherwise, the period could be too long, and you can only update any values at phase=0.
